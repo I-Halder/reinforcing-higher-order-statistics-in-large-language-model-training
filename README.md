@@ -1,6 +1,6 @@
 # A new algorithm for LLM training 
 
-This repo contains code for an on-going project related to developing a new algorithm training large languge models. The code in this repo is still under development. 
+This repo contains code for an on-going project related to developing a new algorithm for training large languge models. The code in this repo is still under development. 
 
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
