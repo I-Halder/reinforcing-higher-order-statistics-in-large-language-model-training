@@ -2,6 +2,11 @@
 
 This repo contains code for an on-going project related to developing a new algorithm for knowledge distillation from a large languge model based on self-play. See below for the details of the project. The code in this repo is still under development and current code can reproduce standard scaling laws for a given language model.
 
+<div style="display: flex; justify-content: center;">
+    <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
+</div>
+
+
 # Applications in reinforcement learning
 
 
