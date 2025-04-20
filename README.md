@@ -1,7 +1,9 @@
-
-# A new reinforcement learning based algorithm
+# A new algorithm for LLM training 
 
 This repo contains code for an on-going project related to developing a new algorithm for knowledge distillation from a large languge model based on self-play. See below for the details of the project. The code in this repo is still under development and current code can reproduce standard scaling laws for a given language model.
+
+# Applications in reinforcement learning
+
 
 ## Review of standard approach
 We are presented with a prompt $x$ and a set of $K$ answers with ground truth preference $y_1> \ldots>y_K$. The language model generates response $y$ form $\pi_\theta(y|x)$. We define penalty/error  $E(y|x)$ for response $y$ using the following formula
@@ -32,9 +34,9 @@ In Proximal Policy Optimization (PPO) one solves the last equation to get $E$ an
 </td></tr>
 </table>
 
-## The new algorithm
+## Self-play fine tuning
 Self-Play Fine-Tuning (SPIN) corresponds to $K=2$. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{\theta(t)}(y_2|x)$. Our method aligned Supervised Fine Tuning (aSFT) corresponds to $K=3$. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{LLM}(y_2|x), y_3\sim\pi_{\theta(t)}(y_3|x)$. Here we are using a larger languge model for assistance in generating $y_2$. 
 
-# Experimental results
+## Self-play based knowledge distillation
 
 
