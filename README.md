@@ -1,7 +1,16 @@
 # A new algorithm for LLM training 
 
-This repo contains code for an on-going project related to developing a new algorithm for training large languge models. The code in this repo is still under development. 
+This repo contains code for an on-going project related to developing a new algorithm for training large languge models. The code in this repo is still under development. Here we present some initial observations. Usually in causal next-token prediction training of large languge models one uses cross-entropy loss 
+<table align="center">
+<tr><td>
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;T_0=-\sum_{i=1}^{seq-len}log\,p_i" />
+</td></tr>
+</table>
 
+Here $p_i$ is the probabilities for the $i$-th token present in the ground truth label. At late in the training phase $p_i \sim 1$ and we can Taylor expand the loss using 
+
+
+Now we present plot comparing different losses.
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
 </div>
