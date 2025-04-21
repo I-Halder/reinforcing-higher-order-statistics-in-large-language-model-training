@@ -8,6 +8,23 @@ This repo contains code for an on-going project related to developing a new algo
 </table>
 
 Here $p_i$ is the probabilities for the $i$-th token present in the ground truth label. At late in the training phase $p_i \sim 1$ and we can Taylor expand the loss using 
+<table align="center">
+<tr><td>
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;log\,p_i=(p_i-1)-\frac{(p_i-1)^2}{2}+\mathcal{O}((p_i-1)^3)" />
+</td></tr>
+</table>
+
+To take into account higher order statistics of $p_i$ we can use modified loss functions as follows
+<table align="center">
+<tr><td>
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;T_1=-\sum_{i=1}^{seq-len}(log\,p_i-(p_i-1))" />
+</td></tr>
+</table>
+<table align="center">
+<tr><td>
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;T_2=-\sum_{i=1}^{seq-len}log\,p_i-(p_i-1)+\frac{(p_i-1)^2}{2}" />
+</td></tr>
+</table>
 
 
 Now we present plot comparing different losses.
