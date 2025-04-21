@@ -27,7 +27,7 @@ To take into account higher order statistics of $p_i$ we can use modified loss f
 </table>
 
 
-Now we present plot comparing different losses.
+Now we present plot comparing different losses and show that $T_2, T_1$ are much more stable compared to cross entropy $T_0$ and in terms of minimum validation loss they are superior.
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
 </div>
