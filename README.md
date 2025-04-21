@@ -1,6 +1,6 @@
 # A new algorithm for LLM training 
 
-This repo contains code for an on-going project related to developing a new algorithm for training large languge models. The code in this repo is still under development. Here we present some initial observations. Usually in causal next-token prediction training of large languge models one uses cross-entropy loss 
+ Usually in causal next-token prediction training of large languge models one uses cross-entropy loss 
 <table align="center">
 <tr><td>
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;T_0=-\sum_{i=1}^{seq-len}log\,p_i" />
@@ -31,7 +31,7 @@ Now we present plot comparing different losses and show that $T_2, T_1$ are much
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
 </div>
-Our experiment is performed on a transformer having 1 attention layer with 8 heads of embed_dim 1024 and feed_forward_ratio 4. 
+Our experiment is performed on a transformer having 1 attention layer with 8 heads of embed_dim 1024 and feed_forward_ratio 4. We use "stanfordnlp/SHP" dataset with gpt2 tokenizer. For more details of the training process see the code in this repo. This code is being developed as part of an on-going research project and any use of the code without permission is restricted.
 
 # Applications in reinforcement learning
 
