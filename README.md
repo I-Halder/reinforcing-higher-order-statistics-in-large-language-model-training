@@ -22,7 +22,7 @@ To take into account higher order statistics of $p_i$ we can use modified loss f
 </table>
 <table align="center">
 <tr><td>
-<img src="https://latex.codecogs.com/svg.latex?\Large&space;T_2=-\sum_{i=1}^{seq-len}log\,p_i-(p_i-1)+\frac{(p_i-1)^2}{2}" />
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;T_2=-\sum_{i=1}^{seq-len}(log\,p_i-(p_i-1)+\frac{(p_i-1)^2}{2})" />
 </td></tr>
 </table>
 
@@ -31,7 +31,7 @@ Now we present plot comparing different losses and show that $T_2, T_1$ are much
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.jpg" style="transform: translateX(30px);">
 </div>
-
+Our experiment is performed on a transformer having 1 attention layer with 8 heads of embed_dim 1024 and feed_forward_ratio 4. 
 
 # Applications in reinforcement learning
 
