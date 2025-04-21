@@ -63,7 +63,7 @@ In Proximal Policy Optimization (PPO) one solves the last equation to get $E$ an
 </td></tr>
 </table>
 
-Note that the loss above is written only in terms of log probabilities and hence we can use the approximation mentioned above to take advantange of higher order statistics. These ideas can be also applied in PPO with additional statistical reinforcing on reward $r=-E(y|x)$ for given $x$ as follows. We can always construct renormalized reward $R=\sum_{k=1}^{n} c_k r^k$ such that $\mathbb{E}(R)=0, \mathbb{E}(R^k)=1, k=2,3,\dots,n$. Finally, in the loss function we can replace $r$ with $R$. 
+Note that the loss above is written only in terms of log probabilities and hence we can use the approximation mentioned above to take advantange of higher order statistics. These ideas can be also applied in PPO with additional statistical reinforcing on reward $r=-E(y|x)$ for given $x$ as follows. We can always construct renormalized reward $R=\sum_{k=0}^{n} c_k r^k$ such that $\mathbb{E}(R)=0, \mathbb{E}(R^k)=1, k=2,3,\dots,n$. Finally, in the loss function we can replace $r$ with $R$. 
 
 ## Self-play fine tuning
 Self-Play Fine-Tuning (SPIN) corresponds to $K=2$. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{\theta(t)}(y_2|x)$. It can be easily generalized using the above formula to incorporate several past steps. 
