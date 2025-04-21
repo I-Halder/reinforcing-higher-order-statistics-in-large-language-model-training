@@ -39,7 +39,7 @@ In Proximal Policy Optimization (PPO) one solves the last equation to get $E$ an
 Note that the loss above is written only in terms of log probabilities and hence we can use the approximation mentioned above to take advantange of higher order statistics.
 
 ## Self-play fine tuning
-Self-Play Fine-Tuning (SPIN) corresponds to $K=2$. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{\theta(t)}(y_2|x)$.
+Self-Play Fine-Tuning (SPIN) corresponds to $K=2$. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{\theta(t)}(y_2|x)$. It can be easily generalized using the above formula to incorporate several past steps. 
 
 ## Self-play based knowledge distillation
 We can use the above method with $K=3$ for self-play based knowledge distillation. In this case we set $\pi_{ref}=\pi_{\theta(t)}, y_1\sim \pi_{data}(y_1|x), y_2\sim\pi_{LLM}(y_2|x), y_3\sim\pi_{\theta(t)}(y_3|x)$. Here we are using a larger languge model for assistance in generating $y_2$. 
