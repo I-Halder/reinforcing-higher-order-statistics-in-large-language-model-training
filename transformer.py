@@ -19,7 +19,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import copy
-
+import wandb
 import time
 
 
@@ -31,18 +31,20 @@ if torch.cuda.is_available():
 device="cuda"
 
 seq_len=128
-embed_dim=1024 
+embed_dim=64 
 num_heads=8
 feed_forward_ratio=4
 batch_size=20
 temp=1
-lr=1e-4
+lr=1e-3
 reference_model_update_every=5
-num_epochs=2000
+num_epochs=1000
 save_weight = True
 max_data_len=10**4
-num_pred_tokens=10
-model_name = 'Model_'+str(seed)+'_'+str(embed_dim)+'_'+str(num_epochs)+'_'+str(max_data_len)+'.pth'
+num_pred_tokens=1
+loss_type="cross_entropy" # "t1" or "t2" or "spin" or "cross_entropy"
+model_name = 'Stanford_SHP_NLP_'+str(loss_type)+'_seed'+str(seed)+'_embed_dim'+str(embed_dim)+'_num_heads'+str(num_heads)+'_feed_forward_ratio'+str(feed_forward_ratio)+'_batch_size'+str(batch_size)+'_lr'+str(lr)+'_max_data_len'+str(max_data_len)+'_num_pred_tokens'+str(num_pred_tokens)+'_.pth'
+numerical_reg=1e-40
 
 print(f"seq_len: {seq_len}")
 print(f"embed_dim: {embed_dim}")
@@ -56,6 +58,37 @@ print(f"num_epochs: {num_epochs}")
 print(f"max_data_len: {max_data_len}")
 print(f"num_pred_tokens: {num_pred_tokens}")
 print(f"model_name: {model_name}")
+print(f"loss_type: {loss_type}")
+
+project_name = "LLM_Training" # Change this to your project name
+wandb.init(
+    name=model_name,
+    project=project_name,  
+    config={
+        "seed": seed,
+        "seq_len": seq_len,
+        "embed_dim": embed_dim,
+        "num_heads": num_heads,
+        "feed_forward_ratio": feed_forward_ratio,
+        "batch_size": batch_size,
+        "temp": temp,
+        "lr": lr,
+        "reference_model_update_every": reference_model_update_every,
+        "num_epochs": num_epochs,
+        "max_data_len": max_data_len,
+        "num_pred_tokens": num_pred_tokens,
+        "model_name": model_name,
+        "loss_type": loss_type,
+        "numerical_reg":numerical_reg,
+    },
+    settings=wandb.Settings(init_timeout=300)
+)
+
+tokenizer_name="gpt2"
+tokenizer=AutoTokenizer.from_pretrained(tokenizer_name)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token=tokenizer.eos_token
+vocab_size=tokenizer.vocab_size
 
 
 class MultiheadAttention(nn.Module):
@@ -71,7 +104,7 @@ class MultiheadAttention(nn.Module):
         q = q.reshape(batch_size,seq_len,self.num_heads,self.head_dim).permute(0,2,1,3) # [batch_size,num_heads,seq_len,head_dim]
         kT = k.reshape(batch_size,seq_len,self.num_heads,self.head_dim).permute(0,2,3,1) # [batch_size,num_heads,head_dim,seq_len]
         v = v.reshape(batch_size,seq_len,self.num_heads,self.head_dim).permute(0,2,1,3) # [batch_size,num_heads,seq_len,head_dim]
-        attention_logits=q@kT/torch.sqrt(torch.tensor(self.embed_dim)) # [batch_size,num_heads,seq_len,seq_len]
+        attention_logits=q@kT/torch.sqrt(torch.tensor(self.head_dim)) # [batch_size,num_heads,seq_len,seq_len]
         if mask is not None:
             attention_logits=attention_logits.masked_fill(mask==0, -torch.inf)
         attn_weights=F.softmax(attention_logits, dim=-1)
@@ -93,16 +126,79 @@ class positional_encoding(nn.Module):
         pe=torch.arange(0,seq_len).unsqueeze(1) # [seq_len,1]
         embed=torch.arange(embed_dim)
         embed1=torch.where(embed%2==0,0,1)*torch.sin(pe*(100**(-embed/embed_dim)).unsqueeze(0)) # [seq_len,embed_dim]
-        embed2=torch.where(embed%2==0,1,0)*torch.sin(pe*(100**(-embed/embed_dim)).unsqueeze(0)) # [seq_len,embed_dim]
+        embed2=torch.where(embed%2==0,1,0)*torch.cos(pe*(100**(-embed/embed_dim)).unsqueeze(0)) # [seq_len,embed_dim]
         pe_embed=(embed1+embed2).unsqueeze(0).repeat(batch_size,1,1).to(device) # [batch_size,seq_len,embed_dim]
         
         return x+pe_embed
 
 
+class transformer(nn.Module):
+    def __init__(self, vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.feed_forward_ratio = feed_forward_ratio
+        self.embed_layer=nn.Linear(embed_dim,3*embed_dim)
+        self.MultiheadAttention=MultiheadAttention(embed_dim,num_heads)
+        self.layer_norm_A=nn.LayerNorm(embed_dim) 
+        self.layer_norm_B=nn.LayerNorm(embed_dim) 
+        self.ffn_layers=nn.Sequential(
+            nn.Linear(embed_dim,feed_forward_ratio*embed_dim),
+            nn.ReLU(),
+            nn.Linear(feed_forward_ratio*embed_dim,embed_dim)
+        )
+        self.input_embedding=nn.Embedding(vocab_size, embed_dim)
+        self.output_embedding=nn.Linear(embed_dim, vocab_size)
+        self.positional_encoding=positional_encoding(embed_dim)
+       
+    
+    def forward(self, x): #x has shape [batch_size,seq_len] each element is an integer in range(0,vocab_size)
+        x=self.input_embedding(x) # [batch_size,seq_len] -> [batch_size,seq_len,embed_dim]
+        x=self.positional_encoding(x)
+        #print(f"x has shape {x.shape}")
+        qkv=self.embed_layer(x) # [batch_size,seq_len,embed_dim] -> [batch_size,seq_len,3*embed_dim] 
+        q, k, v= qkv.chunk(3,dim=-1) 
+        batch_size, seq_len, _=x.shape
+        
+        # causal mask is needed for pre-SFT training 
+        mask=torch.tril(torch.ones(seq_len,seq_len), diagonal=0).unsqueeze(0).unsqueeze(0).repeat(batch_size,self.num_heads,1,1).to(device) # [1,1,seq_len,seq_len]
+
+        attn_value, _=self.MultiheadAttention(q,k,v,mask)
+       
+        x=x+attn_value
+        x=self.layer_norm_A(x) 
+        x= x+self.ffn_layers(x)     
+        x=self.layer_norm_B(x) 
+        x=self.output_embedding(x) # [batch_size,seq_len,embed_dim] -> [batch_size,seq_len,vocab_size]
+        return x # [batch_size,seq_len,vocab_size] 
+    
+
+policy_model=transformer(vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio)
+reference_model=transformer(vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio)
+optimizer=optim.Adam(policy_model.parameters(),lr=lr)
+#scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000, eta_min=1e-6)
+scheduler=None
+
+def initialize_weights(model):
+    for name, pram in model.named_parameters():
+        if pram.requires_grad:
+            if "weight" in name:
+                if pram.dim() >= 2:
+                    fan_in, fan_out = pram.shape[0], pram.shape[1]
+                else:
+                    fan_in = fan_out = pram.shape[0]
+                pram.data.normal_(0, torch.sqrt(torch.tensor(2/(fan_in+fan_out))))
+            elif "bias" in name:
+                pram.data.fill_(0)
+
+initialize_weights(policy_model)
+initialize_weights(reference_model)
+
+
 
 # load dataset and tokenizer from Huggingface
 dataset_name="stanfordnlp/SHP"
-tokenizer_name="gpt2"
 dataset=load_dataset(dataset_name, split="train", trust_remote_code=True)
 dataset=dataset.select(range(min(max_data_len,len(dataset)))) # select first max_data_len samples
 
@@ -111,10 +207,6 @@ train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
 
-tokenizer=AutoTokenizer.from_pretrained(tokenizer_name)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token=tokenizer.eos_token
-vocab_size=tokenizer.vocab_size
 
 # print(dir(tokenizer))  # all the methods and attributes of the tokenizer
 # print(f"max_len for the tokenizer: {tokenizer.model_max_length}")
@@ -190,88 +282,28 @@ chosen_tokens, rejected_tokens, chosen_label, rejected_label, prompt_token=next(
 # print(f"rejected_label has shape {rejected_label.shape}")
 
 
-class transformer(nn.Module):
-    def __init__(self, vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio):
-        super().__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        self.feed_forward_ratio = feed_forward_ratio
-        self.embed_layer=nn.Linear(embed_dim,3*embed_dim)
-        self.MultiheadAttention=MultiheadAttention(embed_dim,num_heads)
-        self.layer_norm=nn.LayerNorm(embed_dim)
-        self.ffn_layers=nn.Sequential(
-            nn.Linear(embed_dim,feed_forward_ratio*embed_dim),
-            nn.ReLU(),
-            nn.Linear(feed_forward_ratio*embed_dim,embed_dim)
-        )
-        self.input_embedding=nn.Embedding(vocab_size, embed_dim)
-        self.output_embedding=nn.Linear(embed_dim, vocab_size)
-        self.positional_encoding=positional_encoding(embed_dim)
-       
-    
-    def forward(self, x): #x has shape [batch_size,seq_len] each element is an integer in range(0,vocab_size)
-        x=self.input_embedding(x) # [batch_size,seq_len] -> [batch_size,seq_len,embed_dim]
-        x=self.positional_encoding(x)
-        #print(f"x has shape {x.shape}")
-        qkv=self.embed_layer(x) # [batch_size,seq_len,embed_dim] -> [batch_size,seq_len,3*embed_dim] 
-        q, k, v= qkv.chunk(3,dim=-1) 
-        batch_size, seq_len, _=x.shape
-        mask=torch.tril(torch.ones(seq_len,seq_len), diagonal=0).unsqueeze(0).unsqueeze(0).repeat(batch_size,self.num_heads,1,1).to(device) # [1,1,seq_len,seq_len]
-        #print(f"mask has shape {mask.shape}")
-        attn_value, _=self.MultiheadAttention(q,k,v,mask)
-        #print(f"attn_value has shape {attn_value.shape}")
-        #print(f"x has shape {x.shape}")
-        x=x+attn_value
-        x=self.layer_norm(x)
-        x= self.ffn_layers(x)
-        x=self.layer_norm(x)
-        x=self.output_embedding(x) # [batch_size,seq_len,embed_dim] -> [batch_size,seq_len,vocab_size]
-        return x # [batch_size,seq_len,vocab_size] 
-    
-
-policy_model=transformer(vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio)
-reference_model=transformer(vocab_size, positional_encoding, embed_dim, num_heads, feed_forward_ratio)
-optimizer=optim.Adam(policy_model.parameters(),lr=lr)
-scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000, eta_min=1e-6)
-
-def initialize_weights(model):
-    for name, pram in model.named_parameters():
-        if pram.requires_grad:
-            if "weight" in name:
-                if pram.dim() >= 2:
-                    fan_in, fan_out = pram.shape[0], pram.shape[1]
-                else:
-                    fan_in = fan_out = pram.shape[0]
-                pram.data.normal_(0, torch.sqrt(torch.tensor(2/(fan_in+fan_out))))
-            elif "bias" in name:
-                pram.data.fill_(0)
-
-initialize_weights(policy_model)
-initialize_weights(reference_model)
-
 class loss_function(nn.Module):
-    def __init__(self, temp):
+    def __init__(self, temp=0.01, loss_type="cross_entropy"):
         super().__init__()
         self.temp=temp
+        self.loss_type = loss_type
 
     def forward(self, policy_chosen_logprob, policy_rejected_logprob, reference_chosen_logprob, reference_rejected_logprob): # each one has shape [batch_size,seq_len]
         mask=(policy_chosen_logprob!=0).float()
-        # print(f"-policy_chosen_logprob: {-((policy_chosen_logprob).sum(dim=-1)/mask.sum(dim=-1)).mean()}")
-        # print(f"-reference_chosen_logprob: {-((reference_chosen_logprob).sum(dim=-1)/mask.sum(dim=-1)).mean()}")
-        # print(f"-policy_rejected_logprob: {-((policy_rejected_logprob).sum(dim=-1)/mask.sum(dim=-1)).mean()}")
-        # print(f"-reference_rejected_logprob: {-((reference_rejected_logprob).sum(dim=-1)/mask.sum(dim=-1)).mean()}")
+        if self.loss_type=="cross_entropy":
+            return -((policy_chosen_logprob).sum(dim=-1)/ (mask.sum(dim=-1) + numerical_reg)).mean()
+        elif self.loss_type=="t1":
+            return -((policy_chosen_logprob-(torch.exp(policy_chosen_logprob)-1)).sum(dim=-1)/ (mask.sum(dim=-1) + numerical_reg)).mean()
+        elif self.loss_type=="t2":
+            return -(((policy_chosen_logprob-((torch.exp(policy_chosen_logprob)-1)-0.5*(torch.exp(policy_chosen_logprob)-1)**2))).sum(dim=-1)/(mask.sum(dim=-1) + numerical_reg)).mean()
+        elif self.loss_type=="spin":
+            return -(F.logsigmoid(self.temp*((policy_chosen_logprob-reference_chosen_logprob)-(policy_rejected_logprob-reference_rejected_logprob))).sum(dim=-1)/(mask.sum(dim=-1) + numerical_reg)).mean()
         
-        return -((policy_chosen_logprob).sum(dim=-1)/mask.sum(dim=-1)).mean() # T0
-        # return -((policy_chosen_logprob-(torch.exp(policy_chosen_logprob)-1)).sum(dim=-1)/mask.sum(dim=-1)).mean()  #T1
-        # return -(((policy_chosen_logprob-((torch.exp(policy_chosen_logprob)-1)-0.5*(torch.exp(policy_chosen_logprob)-1)**2))).sum(dim=-1)/mask.sum(dim=-1)).mean() #T2
-     
-        # return -(F.logsigmoid(self.temp*((policy_chosen_logprob-reference_chosen_logprob)-(policy_rejected_logprob-reference_rejected_logprob))).sum(dim=-1)/mask.sum(dim=-1)).mean() # [batch_size,seq_len] # spin
-        
+
 class validation_loss_function(nn.Module):
-    def __init__(self, temp):
+    def __init__(self):
         super().__init__()
-        self.temp=temp
+        
 
     def forward(self, policy_chosen_logprob, chosen_label): # each one has shape [batch_size,seq_len]
         mask=(chosen_label!=0).float()
@@ -291,8 +323,8 @@ class calculate_logprob(nn.Module):
         return log_prob # [batch_size, seq_len]
 
 calculate_logprob=calculate_logprob()
-loss_function=loss_function(temp)
-validation_loss_function=validation_loss_function(temp)
+loss_function=loss_function(temp,loss_type)
+validation_loss_function=validation_loss_function()
 
 if os.path.exists(model_name):
     policy_model.load_state_dict(torch.load(model_name))
@@ -390,13 +422,20 @@ class trainer(nn.Module):
                 epoch_loss+=loss.item()
             
             # Validation loop
+            train_loss = epoch_loss/len(self.dataloader)
             val_loss = self.validate()
             
-            self.scheduler.step()
+            #self.scheduler.step()
             if epoch%self.reference_model_update_every==0:
                 self.reference_model.load_state_dict(self.policy_model.state_dict())
             
-            print(f"Epoch: {epoch+1}, train loss: {epoch_loss/len(self.dataloader):.4f}, val loss: {val_loss:.4f}")
+            print(f"Epoch: {epoch+1}, train loss: {train_loss:.4f}, val loss: {val_loss:.4f}")
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss_epoch": train_loss,
+                "val_loss_epoch": val_loss,
+                "lr": self.optimizer.param_groups[0]["lr"]
+            })
             
             # Save best model
             if val_loss < best_val_loss:
@@ -410,4 +449,4 @@ trainer=trainer(policy_model,reference_model, optimizer,scheduler, loss_function
                 dataloader, val_dataloader, positional_encoding,tokenizer, embed_dim, vocab_size, 
                 num_epochs,reference_model_update_every, model_name, save_weight)
 trainer()
-
+wandb.finish()
