@@ -43,6 +43,7 @@ Above experiment is performed on a transformer having 1 attention layer with 8 h
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="resnet_val_en.png" style="transform: translateX(30px);">
 </div>
+
 Above experiment is performed for ResNET trained on CIFAR100 dataset. We can see that the best model trained by $T_2$ has lower cross_entropy validation loss compared to $T_0$. On the other hand if we consider the best model trained by $T_0, T_2$ according to cross_entropy, $T_2$ produces better accuracy compared to $T_0$. Finally for equal amount of training compute the model trained with $T_2$ has higher entropy of logit distribution compared to $T_0$ for wrong predictions, i.e., the model trained with $T_2$ has lower confidence while making a mistake as compared to $T_0$.
 
 # Applications in reinforcement learning
