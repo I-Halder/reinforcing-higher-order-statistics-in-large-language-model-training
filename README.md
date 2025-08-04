@@ -31,7 +31,7 @@ Now we present plot comparing different losses and show that $T_2, T_1$ are much
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="val_loss_pre-SFT.png" style="transform: translateX(30px);">
 </div>
-Above experiment is performed on a transformer having 1 attention layer with 8 heads of embed_dim 64, 1024 and feed_forward_ratio 4. We use "stanfordnlp/SHP" dataset with gpt2 tokenizer. Time weighted exponential moving average with paramter $0.99$ is applied to the graph. For more details of the training process see the code in this repo. This code is being developed as part of an on-going research project and any use of the code without permission is restricted.
+Above experiment is performed on a transformer having 1 attention layer with 8 heads of embed_dim 64, 1024 and feed_forward_ratio 4. We use "stanfordnlp/SHP" dataset with gpt2 tokenizer. Time weighted exponential moving average with paramter 0.99 is applied to the graph. For more details of the training process see the code in this repo. 
 <div style="display: flex; justify-content: center;">
     <img alt="fig1" width="1000px" src="resnet_val_loss.png" style="transform: translateX(30px);">
 </div>
